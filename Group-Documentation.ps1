@@ -20,10 +20,10 @@ This can either be '/v1.0' or '/beta' - by default the script will use beta, as 
 ATTENTION: You should never have to change this, because /v1.0 does not contain each request used.
 
 .PARAMETER CertificateThumbprint
-Currently this script only supports the usage of certificates to connect to graph. Please provide the thumbprint of the certificate used.
+To Connect to Graph with a Certificate, please provide the thumbprint of the certificate used.
 
 .PARAMETER ClientID
-Currently this script only supports the usage of a custom app registration. Please provide the client ID of the app registration.
+Please provide the client ID of the app registration or the Microsoft Graph powershell app registration will be used
 
 .PARAMETER TenantID
 Provide the tenant ID.
@@ -59,17 +59,50 @@ This is useful, if you didn't set up your own application but instead rely on th
         * Make visualization happen using Mermaid
         ... more at my blog!
 #>
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'SignInAuth')]
 param(
-    [System.IO.DirectoryInfo]$WorkingDirectory = 'C:\GroupDocumentation\',
+
+    [Parameter(Mandatory = $false)]
+    [System.IO.DirectoryInfo]$WorkingDirectory = "$(Get-location)\GroupDocumentation\",
+
+    [Parameter(Mandatory = $false)]
     [System.IO.DirectoryInfo]$LogDirectory = "$WorkingDirectory\Logs\",
-    [string]$TenantAPIToUse = '/beta',
-    [string]$CertificateThumbprint,
-    [string]$ClientID,
-    [string]$TenantID,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('/beta', '/v1.0')]
+    [String]$TenantAPIToUse = '/beta',
+
+    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateAuth')]
+    [String]$CertificateThumbprint,
+
+    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateAuth')]
+    [Parameter(Mandatory = $True, ParameterSetName = 'SignInAuthCustom')]
+    [String]$ClientID,
+
+    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateAuth')]
+    [Parameter(Mandatory = $False, ParameterSetName = 'SignInAuth')]
+    [Parameter(Mandatory = $True, ParameterSetName = 'SignInAuthCustom')]
+    [String]$TenantID,
+
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'AccessTokenAuth')]
+    [Securestring]$AccessToken,
+
+    [Parameter(Mandatory = $false) ]
     [switch]$MultiFileResult,
+
+    [Parameter(Mandatory = $false)]
     [switch]$ConvertToMermaid
 )
+Set-Variable RequiredGraphScopes -Scope "Script" -Option Constant @(
+"DeviceManagementApps.Read.All", 
+"DeviceManagementConfiguration.Read.All", 
+"DeviceManagementServiceConfig.Read.All", 
+"Group.Read.All" 
+)
+
+
+
 #Prepare folders and files
 $Script:TimeStampStart = Get-Date
 $Script:DateTime = Get-Date -Format ddMMyyyy_hhmmss
@@ -80,13 +113,15 @@ $LogFile = Join-Path -Path $LogDirectory -ChildPath ('{0}_{1}.log' -f $LogPrefix
 $Script:PathToScript = if ( $PSScriptRoot ) { 
     # Console or VS Code debug/run button/F5 temp console
     $PSScriptRoot 
-} else {
+}
+else {
     if ( $psISE ) { Split-Path -Path $psISE.CurrentFile.FullPath }
     else {
         if ($profile -match 'VScode') { 
             # VS Code "Run Code Selection" button/F8 in integrated console
             Split-Path $psEditor.GetEditorContext().CurrentFile.Path 
-        } else { 
+        }
+        else { 
             Write-Output 'unknown directory to set path variable. exiting script.'
             exit
         } 
@@ -132,6 +167,8 @@ function Write-Log {
         }        
     }
 }
+
+
 function Get-nextLinkData {
     param(
         $OriginalObject
@@ -251,12 +288,14 @@ function Add-NewObjectToGroupInResults {
     )
     if (-not($OdataType)) {
         Register-GroupInResults -GroupID $GroupID
-    } else {
+    }
+    else {
         $GroupID = Register-GroupInResults -OdataType $OdataType
     }
     if (-not($FilterID -eq '00000000-0000-0000-0000-000000000000')) {
         $FilterName = if ($FilterID) { Find-FilterInCache -FilterID $FilterID }
-    } else {
+    }
+    else {
         $FilterID = $null
     }
     $GroupMode = if ($GroupModeOData) { Get-GroupMode -GroupMode $GroupModeOData }
@@ -435,7 +474,8 @@ function Get-AppRelations {
             } 
             if ($Assignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $Assignment.target.'@odata.type'
             }
         }
@@ -454,7 +494,8 @@ function Get-DeviceEnrollmentConfigurationRelations {
         }
         if ($DeviceEnrollmentConfiguration.DisplayName -eq 'All users and all devices') {
             $ObjectName = ($Script:StaticObjects | Where-Object { $_.Identifier -eq $DeviceEnrollmentConfiguration.'@odata.type' }).ObjectName
-        } else {
+        }
+        else {
             $ObjectName = $DeviceEnrollmentConfiguration.DisplayName
         }
         foreach ($DeviceEnrollmentAssignment in $DeviceEnrollmentConfiguration.assignments) {
@@ -469,7 +510,8 @@ function Get-DeviceEnrollmentConfigurationRelations {
             } 
             if ($DeviceEnrollmentAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $DeviceEnrollmentAssignment.target.'@odata.type'
             }
         }
@@ -518,7 +560,8 @@ function Get-DeviceConfigurationRelations {
             } 
             if ($DeviceConfigurationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $DeviceConfigurationAssignment.target.'@odata.type'
             }            
         }
@@ -574,7 +617,8 @@ function Get-ScriptRelations {
             } 
             if ($ScriptAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $ScriptAssignment.target.'@odata.type'
             }
         }
@@ -601,7 +645,8 @@ function Get-Remediations {
             } 
             if ($RemediationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $RemediationAssignment.target.'@odata.type'
             }
         }
@@ -628,7 +673,8 @@ function Get-DeviceComplianceRelations {
             } 
             if ($DeviceCompliancePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $DeviceCompliancePolicyAssignment.target.'@odata.type'
             }
         }
@@ -656,7 +702,8 @@ function Get-ComplianceRelations {
             } 
             if ($CompliancePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $CompliancePolicyAssignment.target.'@odata.type'
             }
         }
@@ -688,7 +735,8 @@ function Get-DriverUpdateRelations {
             } 
             if ($DriverUpdatePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $DriverUpdatePolicyAssignment.target.'@odata.type'
             }
         }
@@ -714,7 +762,8 @@ function Get-FeatureUpdateRelations {
             } 
             if ($FeatureUpdatePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $FeatureUpdatePolicyAssignment.target.'@odata.type'
             }
         }
@@ -739,7 +788,8 @@ function Get-IntentRelations {
         }
         if ($AllIntents.value.count - $i -gt 1) {
             $IntentAssignments = Invoke-BatchRequest @params
-        } else {
+        }
+        else {
             $IntentAssignments = Invoke-BatchRequest -SendNow @params
         }
         if ($IntentAssignments) {
@@ -760,7 +810,8 @@ function Get-IntentRelations {
                     } 
                     if ($Target.groupId) {
                         Add-NewObjectToGroupInResults @params
-                    } else {
+                    }
+                    else {
                         Add-NewObjectToGroupInResults @params -OdataType $Target.'@odata.type'
                     }
                 }
@@ -790,7 +841,8 @@ function Get-ConfigurationPoliciesRelations {
             } 
             if ($configurationPolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $configurationPolicyAssignment.target.'@odata.type'
             }
         }
@@ -830,7 +882,8 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($iOSAppProtectionAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $iOSAppProtectionAssignment.target.'@odata.type'
             }
         }
@@ -854,7 +907,8 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($AndroidAppProtectionAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $AndroidAppProtectionAssignment.target.'@odata.type'
             }
         }
@@ -878,7 +932,8 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($windowsManagedAppProtectionAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $windowsManagedAppProtectionAssignment.target.'@odata.type'
             }
         }
@@ -902,7 +957,8 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($mdmwipProtectionPolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $mdmwipProtectionPolicyAssignment.target.'@odata.type'
             }
         }
@@ -927,7 +983,8 @@ function Get-AppConfigurationPolicyRelations {
             } 
             if ($AppConfigurationDeviceConfigurationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $AppConfigurationDeviceConfigurationAssignment.target.'@odata.type'
             }
         }
@@ -951,7 +1008,8 @@ function Get-AppConfigurationPolicyRelations {
             } 
             if ($AllAppConfigurationConfigurationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            } else {
+            }
+            else {
                 Add-NewObjectToGroupInResults @params -OdataType $AllAppConfigurationConfigurationAssignment.target.'@odata.type'
             }
         }
@@ -1013,22 +1071,48 @@ function Start-GatherInformation {
 }
 
 #Start Coding!
-#Quick exit if no Graph connection can be established
-if ($null -eq $(Get-mgcontext)) {
-    if (-not($CertificateThumbprint)) {
-        Write-Log -Message 'No certificate thumbpring was provided - this is currently a requirement. Exiting' -Component 'GFDCore' -Type 3
-        exit 1
+$MgContext = Get-MgContext
+if ($null -eq $($MgContext)) {
+    
+    switch -Exact ($PSCmdlet.ParameterSetName) {
+        'SignInAuth' {
+            $Splat = @{}
+            if (-not([string]::IsNullOrEmpty($TenantID))) {
+                $Splat['TenantId'] = $TenantID
+            }
+            $Splat['Scopes'] = $RequiredGraphScopes
+        }
+        'SignInAuthCustom' {
+            $Splat = @{}
+            $Splat['TenantId'] = $TenantID
+            $Splat['ClientId'] = $ClientID
+        }
+        'CertificateAuth' {
+            $Splat = @{}
+            $Splat['TenantId'] = $TenantID
+            $Splat['ClientId'] = $ClientID
+            $Splat['CertificateThumbPrint'] = $CertificateThumbprint
+            
+        }
+
+        'AccessTokenAuth' {
+            $Splat = @{}
+            $Splat['AccessToken'] = $AccessToken
+            
+        }
+        
     }
-    if (-not($ClientID)) {
-        Write-Log -Message 'No (app) client ID was provided - this is currently a requirement. Exiting' -Component 'GFDCore' -Type 3
-        exit 1
+    Connect-MgGraph @Splat
+    $MgContext = Get-MgContext
+    $Splat = $Null
+    if ($Null -ne ($RequiredGraphScopes |Where-Object {$_ -notin $MgContext.Scopes})) {
+        throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
     }
-    if (-not($TenantID)) {
-        Write-Log -Message 'No tenant ID was provided - this is currently a requirement. Exiting' -Component 'GFDCore' -Type 3
-        exit 1
+}
+else {
+    if  ($Null -ne ($RequiredGraphScopes |Where-Object {$_ -notin $MgContext.Scopes})){
+        throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
     }
-    #Prepare Graph-Session
-    Connect-MgGraph -CertificateThumbprint $CertificateThumbprint -ClientId $ClientID -TenantId $TenantID
 }
 #Prepare some data that is expected in every environment
 Initialize-Data
@@ -1046,7 +1130,8 @@ if ($MultiFileResult) {
         $TargetPath = "$WorkingDirectory$GroupNameSanitized.json"
         $Group | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
     }
-} else {
+}
+else {
     $TargetPath = "$WorkingDirectory`GCD_AllGroups.json"
     $Script:ResultArray | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
 }
