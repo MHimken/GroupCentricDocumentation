@@ -94,11 +94,11 @@ param(
     [Parameter(Mandatory = $false)]
     [switch]$ConvertToMermaid
 )
-Set-Variable RequiredGraphScopes -Scope "Script" -Option Constant @(
-"DeviceManagementApps.Read.All", 
-"DeviceManagementConfiguration.Read.All", 
-"DeviceManagementServiceConfig.Read.All", 
-"Group.Read.All" 
+Set-Variable RequiredGraphScopes -Scope "Script" -Option ReadOnly @(
+    "DeviceManagementApps.Read.All", 
+    "DeviceManagementConfiguration.Read.All", 
+    "DeviceManagementServiceConfig.Read.All", 
+    "Group.Read.All" 
 )
 
 
@@ -113,15 +113,13 @@ $LogFile = Join-Path -Path $LogDirectory -ChildPath ('{0}_{1}.log' -f $LogPrefix
 $Script:PathToScript = if ( $PSScriptRoot ) { 
     # Console or VS Code debug/run button/F5 temp console
     $PSScriptRoot 
-}
-else {
+} else {
     if ( $psISE ) { Split-Path -Path $psISE.CurrentFile.FullPath }
     else {
         if ($profile -match 'VScode') { 
             # VS Code "Run Code Selection" button/F8 in integrated console
             Split-Path $psEditor.GetEditorContext().CurrentFile.Path 
-        }
-        else { 
+        } else { 
             Write-Output 'unknown directory to set path variable. exiting script.'
             exit
         } 
@@ -288,14 +286,12 @@ function Add-NewObjectToGroupInResults {
     )
     if (-not($OdataType)) {
         Register-GroupInResults -GroupID $GroupID
-    }
-    else {
+    } else {
         $GroupID = Register-GroupInResults -OdataType $OdataType
     }
     if (-not($FilterID -eq '00000000-0000-0000-0000-000000000000')) {
         $FilterName = if ($FilterID) { Find-FilterInCache -FilterID $FilterID }
-    }
-    else {
+    } else {
         $FilterID = $null
     }
     $GroupMode = if ($GroupModeOData) { Get-GroupMode -GroupMode $GroupModeOData }
@@ -474,8 +470,7 @@ function Get-AppRelations {
             } 
             if ($Assignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $Assignment.target.'@odata.type'
             }
         }
@@ -494,8 +489,7 @@ function Get-DeviceEnrollmentConfigurationRelations {
         }
         if ($DeviceEnrollmentConfiguration.DisplayName -eq 'All users and all devices') {
             $ObjectName = ($Script:StaticObjects | Where-Object { $_.Identifier -eq $DeviceEnrollmentConfiguration.'@odata.type' }).ObjectName
-        }
-        else {
+        } else {
             $ObjectName = $DeviceEnrollmentConfiguration.DisplayName
         }
         foreach ($DeviceEnrollmentAssignment in $DeviceEnrollmentConfiguration.assignments) {
@@ -510,8 +504,7 @@ function Get-DeviceEnrollmentConfigurationRelations {
             } 
             if ($DeviceEnrollmentAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $DeviceEnrollmentAssignment.target.'@odata.type'
             }
         }
@@ -560,8 +553,7 @@ function Get-DeviceConfigurationRelations {
             } 
             if ($DeviceConfigurationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $DeviceConfigurationAssignment.target.'@odata.type'
             }            
         }
@@ -617,8 +609,7 @@ function Get-ScriptRelations {
             } 
             if ($ScriptAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $ScriptAssignment.target.'@odata.type'
             }
         }
@@ -645,8 +636,7 @@ function Get-Remediations {
             } 
             if ($RemediationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $RemediationAssignment.target.'@odata.type'
             }
         }
@@ -673,8 +663,7 @@ function Get-DeviceComplianceRelations {
             } 
             if ($DeviceCompliancePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $DeviceCompliancePolicyAssignment.target.'@odata.type'
             }
         }
@@ -702,8 +691,7 @@ function Get-ComplianceRelations {
             } 
             if ($CompliancePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $CompliancePolicyAssignment.target.'@odata.type'
             }
         }
@@ -735,8 +723,7 @@ function Get-DriverUpdateRelations {
             } 
             if ($DriverUpdatePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $DriverUpdatePolicyAssignment.target.'@odata.type'
             }
         }
@@ -762,8 +749,7 @@ function Get-FeatureUpdateRelations {
             } 
             if ($FeatureUpdatePolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $FeatureUpdatePolicyAssignment.target.'@odata.type'
             }
         }
@@ -788,8 +774,7 @@ function Get-IntentRelations {
         }
         if ($AllIntents.value.count - $i -gt 1) {
             $IntentAssignments = Invoke-BatchRequest @params
-        }
-        else {
+        } else {
             $IntentAssignments = Invoke-BatchRequest -SendNow @params
         }
         if ($IntentAssignments) {
@@ -810,8 +795,7 @@ function Get-IntentRelations {
                     } 
                     if ($Target.groupId) {
                         Add-NewObjectToGroupInResults @params
-                    }
-                    else {
+                    } else {
                         Add-NewObjectToGroupInResults @params -OdataType $Target.'@odata.type'
                     }
                 }
@@ -841,8 +825,7 @@ function Get-ConfigurationPoliciesRelations {
             } 
             if ($configurationPolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $configurationPolicyAssignment.target.'@odata.type'
             }
         }
@@ -882,8 +865,7 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($iOSAppProtectionAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $iOSAppProtectionAssignment.target.'@odata.type'
             }
         }
@@ -907,8 +889,7 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($AndroidAppProtectionAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $AndroidAppProtectionAssignment.target.'@odata.type'
             }
         }
@@ -932,8 +913,7 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($windowsManagedAppProtectionAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $windowsManagedAppProtectionAssignment.target.'@odata.type'
             }
         }
@@ -957,8 +937,7 @@ function Get-AppProtectionPolicyRelations {
             } 
             if ($mdmwipProtectionPolicyAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $mdmwipProtectionPolicyAssignment.target.'@odata.type'
             }
         }
@@ -983,8 +962,7 @@ function Get-AppConfigurationPolicyRelations {
             } 
             if ($AppConfigurationDeviceConfigurationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $AppConfigurationDeviceConfigurationAssignment.target.'@odata.type'
             }
         }
@@ -1008,8 +986,7 @@ function Get-AppConfigurationPolicyRelations {
             } 
             if ($AllAppConfigurationConfigurationAssignment.target.groupId) {
                 Add-NewObjectToGroupInResults @params
-            }
-            else {
+            } else {
                 Add-NewObjectToGroupInResults @params -OdataType $AllAppConfigurationConfigurationAssignment.target.'@odata.type'
             }
         }
@@ -1071,74 +1048,74 @@ function Start-GatherInformation {
 }
 
 #Start Coding!
-$MgContext = Get-MgContext
-if ($null -eq $($MgContext)) {
-    
-    switch -Exact ($PSCmdlet.ParameterSetName) {
-        'SignInAuth' {
-            $Splat = @{}
-            if (-not([string]::IsNullOrEmpty($TenantID))) {
-                $Splat['TenantId'] = $TenantID
-            }
-            $Splat['Scopes'] = $RequiredGraphScopes
-        }
-        'SignInAuthCustom' {
-            $Splat = @{}
-            $Splat['TenantId'] = $TenantID
-            $Splat['ClientId'] = $ClientID
-        }
-        'CertificateAuth' {
-            $Splat = @{}
-            $Splat['TenantId'] = $TenantID
-            $Splat['ClientId'] = $ClientID
-            $Splat['CertificateThumbPrint'] = $CertificateThumbprint
-            
-        }
-
-        'AccessTokenAuth' {
-            $Splat = @{}
-            $Splat['AccessToken'] = $AccessToken
-            
-        }
-        
-    }
-    Connect-MgGraph @Splat
+try {
+    $ErrorActionPreference = 'stop'
     $MgContext = Get-MgContext
-    $Splat = $Null
-    if ($Null -ne ($RequiredGraphScopes |Where-Object {$_ -notin $MgContext.Scopes})) {
-        throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
+    if ($null -eq $($MgContext)) {
+    
+        switch -Exact ($PSCmdlet.ParameterSetName) {
+            'SignInAuth' {
+                $Splat = @{}
+                if (-not([string]::IsNullOrEmpty($TenantID))) {
+                    $Splat['TenantId'] = $TenantID
+                }
+                $Splat['Scopes'] = $RequiredGraphScopes
+            }
+            'SignInAuthCustom' {
+                $Splat = @{}
+                $Splat['TenantId'] = $TenantID
+                $Splat['ClientId'] = $ClientID
+            }
+            'CertificateAuth' {
+                $Splat = @{}
+                $Splat['TenantId'] = $TenantID
+                $Splat['ClientId'] = $ClientID
+                $Splat['CertificateThumbPrint'] = $CertificateThumbprint
+            
+            }
+
+            'AccessTokenAuth' {
+                $Splat = @{}
+                $Splat['AccessToken'] = $AccessToken
+            
+            }
+        
+        }
+        Connect-MgGraph @Splat
+        $MgContext = Get-MgContext
+        $Splat = $Null
+        if ($Null -ne ($RequiredGraphScopes | Where-Object { $_ -notin $MgContext.Scopes })) {
+            throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
+        }
+    } else {
+        if ($Null -ne ($RequiredGraphScopes | Where-Object { $_ -notin $MgContext.Scopes })) {
+            throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
+        }
     }
-}
-else {
-    if  ($Null -ne ($RequiredGraphScopes |Where-Object {$_ -notin $MgContext.Scopes})){
-        throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
+    #Prepare some data that is expected in every environment
+    Initialize-Data
+    #Getting Information
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    Start-GatherInformation
+    $Stopwatch.Stop()
+    $Stopwatch.Elapsed
+    #Export data to Json
+    if ($MultiFileResult) {
+        foreach ($Group in $Script:ResultArray) {
+            #Sanitize Group name
+            $GroupName = $Group.DisplayName
+            $GroupNameSanitized = $GroupName -replace "[$([RegEx]::Escape([string][IO.Path]::GetInvalidFileNameChars()))]+", "_"
+            $TargetPath = "$WorkingDirectory$GroupNameSanitized.json"
+            $Group | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
+        }
+    } else {
+        $TargetPath = "$WorkingDirectory`GCD_AllGroups.json"
+        $Script:ResultArray | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
     }
-}
-#Prepare some data that is expected in every environment
-Initialize-Data
-#Getting Information
-$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-Start-GatherInformation
-$Stopwatch.Stop()
-$Stopwatch.Elapsed
-#Export data to Json
-if ($MultiFileResult) {
-    foreach ($Group in $Script:ResultArray) {
-        #Sanitize Group name
-        $GroupName = $Group.DisplayName
-        $GroupNameSanitized = $GroupName -replace "[$([RegEx]::Escape([string][IO.Path]::GetInvalidFileNameChars()))]+", "_"
-        $TargetPath = "$WorkingDirectory$GroupNameSanitized.json"
-        $Group | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
-    }
-}
-else {
-    $TargetPath = "$WorkingDirectory`GCD_AllGroups.json"
-    $Script:ResultArray | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
-}
 
 
-if ($ConvertToMermaid) {
-    <#Mindmap Template Mermaid
+    if ($ConvertToMermaid) {
+        <#Mindmap Template Mermaid
 mindmap
   root((mindmap))
     Origins
@@ -1157,9 +1134,9 @@ mindmap
       Pen and paper
       Mermaid
 #>
-    foreach ($Group in $Script:ResultArray) {
-        $ObjectTypes = Convert-ObjectTypesMermaid
-        $Diskpart = @"
+        foreach ($Group in $Script:ResultArray) {
+            $ObjectTypes = Convert-ObjectTypesMermaid
+            $Diskpart = @"
 mindmap
 root(($($Group.DisplayName)))
     Origins
@@ -1178,8 +1155,13 @@ root(($($Group.DisplayName)))
     Pen and paper
     Mermaid
 "@
+        }
     }
-}
 
-Disconnect-MgGraph | Out-Null
-Set-Location $CurrentLocation
+} catch {
+    Write-Log -Message $_ -Component 'GFDCore' -Type 3
+} finally {
+    Remove-Variable RequiredGraphScopes -Force # This shouldn't actually be needed but it makes debugging less painful
+    Disconnect-MgGraph | Out-Null
+    Set-Location $CurrentLocation
+}
