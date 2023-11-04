@@ -1081,7 +1081,7 @@ try {
             }
         
         }
-        Connect-MgGraph @Splat
+        Connect-MgGraph @Splat -NoWelcome
         $MgContext = Get-MgContext
         $Splat = $Null
         if ($Null -ne ($RequiredGraphScopes | Where-Object { $_ -notin $MgContext.Scopes })) {
@@ -1162,6 +1162,6 @@ root(($($Group.DisplayName)))
     Write-Log -Message $_ -Component 'GFDCore' -Type 3
 } finally {
     Remove-Variable RequiredGraphScopes -Force # This shouldn't actually be needed but it makes debugging less painful
-    Disconnect-MgGraph | Out-Null
+    Disconnect-MgGraph -ErrorAction SilentlyContinue  | Out-Null 
     Set-Location $CurrentLocation
 }
