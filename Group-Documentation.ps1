@@ -57,6 +57,8 @@ This is useful, if you didn't set up your own application but instead rely on th
             * Membership count (https://graph.microsoft.com/beta/groups/5e8cb718-fb72-4ef0-9e0d-3e43d232780f/transitiveMembers/$count)
             * Creation Date
         * Make visualization happen using Mermaid
+        * Improve error reporting
+        * Handle Error in Line 222 (Get-MgGroup) to accomodate for the group not existing anymore (catch the error)
         ... more at my blog!
 #>
 [CmdletBinding(DefaultParameterSetName = 'SignInAuth')]
