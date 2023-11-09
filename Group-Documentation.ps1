@@ -20,10 +20,10 @@ This can either be '/v1.0' or '/beta' - by default the script will use beta, as 
 ATTENTION: You should never have to change this, because /v1.0 does not contain each request used.
 
 .PARAMETER CertificateThumbprint
-Currently this script only supports the usage of certificates to connect to graph. Please provide the thumbprint of the certificate used.
+To Connect to Graph with a Certificate, please provide the thumbprint of the certificate used.
 
 .PARAMETER ClientID
-Currently this script only supports the usage of a custom app registration. Please provide the client ID of the app registration.
+Please provide the client ID of the app registration or the Microsoft Graph powershell app registration will be used
 
 .PARAMETER TenantID
 Provide the tenant ID.
@@ -59,17 +59,50 @@ This is useful, if you didn't set up your own application but instead rely on th
         * Make visualization happen using Mermaid
         ... more at my blog!
 #>
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'SignInAuth')]
 param(
-    [System.IO.DirectoryInfo]$WorkingDirectory = 'C:\GroupDocumentation\',
+
+    [Parameter(Mandatory = $false)]
+    [System.IO.DirectoryInfo]$WorkingDirectory = "$(Get-location)\GroupDocumentation\",
+
+    [Parameter(Mandatory = $false)]
     [System.IO.DirectoryInfo]$LogDirectory = "$WorkingDirectory\Logs\",
-    [string]$TenantAPIToUse = '/beta',
-    [string]$CertificateThumbprint,
-    [string]$ClientID,
-    [string]$TenantID,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('/beta', '/v1.0')]
+    [String]$TenantAPIToUse = '/beta',
+
+    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateAuth')]
+    [String]$CertificateThumbprint,
+
+    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateAuth')]
+    [Parameter(Mandatory = $True, ParameterSetName = 'SignInAuthCustom')]
+    [String]$ClientID,
+
+    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateAuth')]
+    [Parameter(Mandatory = $False, ParameterSetName = 'SignInAuth')]
+    [Parameter(Mandatory = $True, ParameterSetName = 'SignInAuthCustom')]
+    [String]$TenantID,
+
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'AccessTokenAuth')]
+    [Securestring]$AccessToken,
+
+    [Parameter(Mandatory = $false) ]
     [switch]$MultiFileResult,
+
+    [Parameter(Mandatory = $false)]
     [switch]$ConvertToMermaid
 )
+Set-Variable RequiredGraphScopes -Scope "Script" -Option ReadOnly @(
+    "DeviceManagementApps.Read.All", 
+    "DeviceManagementConfiguration.Read.All", 
+    "DeviceManagementServiceConfig.Read.All", 
+    "Group.Read.All" 
+)
+
+
+
 #Prepare folders and files
 $Script:TimeStampStart = Get-Date
 $Script:DateTime = Get-Date -Format ddMMyyyy_hhmmss
@@ -132,6 +165,8 @@ function Write-Log {
         }        
     }
 }
+
+
 function Get-nextLinkData {
     param(
         $OriginalObject
@@ -1013,47 +1048,74 @@ function Start-GatherInformation {
 }
 
 #Start Coding!
-#Quick exit if no Graph connection can be established
-if ($null -eq $(Get-mgcontext)) {
-    if (-not($CertificateThumbprint)) {
-        Write-Log -Message 'No certificate thumbpring was provided - this is currently a requirement. Exiting' -Component 'GFDCore' -Type 3
-        exit 1
+try {
+    $ErrorActionPreference = 'stop'
+    $MgContext = Get-MgContext
+    if ($null -eq $($MgContext)) {
+    
+        switch -Exact ($PSCmdlet.ParameterSetName) {
+            'SignInAuth' {
+                $Splat = @{}
+                if (-not([string]::IsNullOrEmpty($TenantID))) {
+                    $Splat['TenantId'] = $TenantID
+                }
+                $Splat['Scopes'] = $RequiredGraphScopes
+            }
+            'SignInAuthCustom' {
+                $Splat = @{}
+                $Splat['TenantId'] = $TenantID
+                $Splat['ClientId'] = $ClientID
+            }
+            'CertificateAuth' {
+                $Splat = @{}
+                $Splat['TenantId'] = $TenantID
+                $Splat['ClientId'] = $ClientID
+                $Splat['CertificateThumbPrint'] = $CertificateThumbprint
+            
+            }
+
+            'AccessTokenAuth' {
+                $Splat = @{}
+                $Splat['AccessToken'] = $AccessToken
+            
+            }
+        
+        }
+        Connect-MgGraph @Splat -NoWelcome
+        $MgContext = Get-MgContext
+        $Splat = $Null
+        if ($Null -ne ($RequiredGraphScopes | Where-Object { $_ -notin $MgContext.Scopes })) {
+            throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
+        }
+    } else {
+        if ($Null -ne ($RequiredGraphScopes | Where-Object { $_ -notin $MgContext.Scopes })) {
+            throw [System.Security.Authentication.AuthenticationException]::New('The required Microsoft Graph scopes are not present in the authentication context. Please use Disconnect-MgGraph and try again')
+        }
     }
-    if (-not($ClientID)) {
-        Write-Log -Message 'No (app) client ID was provided - this is currently a requirement. Exiting' -Component 'GFDCore' -Type 3
-        exit 1
+    #Prepare some data that is expected in every environment
+    Initialize-Data
+    #Getting Information
+    $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    Start-GatherInformation
+    $Stopwatch.Stop()
+    $Stopwatch.Elapsed
+    #Export data to Json
+    if ($MultiFileResult) {
+        foreach ($Group in $Script:ResultArray) {
+            #Sanitize Group name
+            $GroupName = $Group.DisplayName
+            $GroupNameSanitized = $GroupName -replace "[$([RegEx]::Escape([string][IO.Path]::GetInvalidFileNameChars()))]+", "_"
+            $TargetPath = "$WorkingDirectory$GroupNameSanitized.json"
+            $Group | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
+        }
+    } else {
+        $TargetPath = "$WorkingDirectory`GCD_AllGroups.json"
+        $Script:ResultArray | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
     }
-    if (-not($TenantID)) {
-        Write-Log -Message 'No tenant ID was provided - this is currently a requirement. Exiting' -Component 'GFDCore' -Type 3
-        exit 1
-    }
-    #Prepare Graph-Session
-    Connect-MgGraph -CertificateThumbprint $CertificateThumbprint -ClientId $ClientID -TenantId $TenantID
-}
-#Prepare some data that is expected in every environment
-Initialize-Data
-#Getting Information
-$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-Start-GatherInformation
-$Stopwatch.Stop()
-$Stopwatch.Elapsed
-#Export data to Json
-if ($MultiFileResult) {
-    foreach ($Group in $Script:ResultArray) {
-        #Sanitize Group name
-        $GroupName = $Group.DisplayName
-        $GroupNameSanitized = $GroupName -replace "[$([RegEx]::Escape([string][IO.Path]::GetInvalidFileNameChars()))]+", "_"
-        $TargetPath = "$WorkingDirectory$GroupNameSanitized.json"
-        $Group | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
-    }
-} else {
-    $TargetPath = "$WorkingDirectory`GCD_AllGroups.json"
-    $Script:ResultArray | ConvertTo-Json -Depth 5 | Out-File -LiteralPath $TargetPath -Force
-}
 
 
-if ($ConvertToMermaid) {
-    <#Mindmap Template Mermaid
+    if ($ConvertToMermaid) {
+        <#Mindmap Template Mermaid
 mindmap
   root((mindmap))
     Origins
@@ -1072,9 +1134,9 @@ mindmap
       Pen and paper
       Mermaid
 #>
-    foreach ($Group in $Script:ResultArray) {
-        $ObjectTypes = Convert-ObjectTypesMermaid
-        $Diskpart = @"
+        foreach ($Group in $Script:ResultArray) {
+            $ObjectTypes = Convert-ObjectTypesMermaid
+            $Diskpart = @"
 mindmap
 root(($($Group.DisplayName)))
     Origins
@@ -1093,8 +1155,13 @@ root(($($Group.DisplayName)))
     Pen and paper
     Mermaid
 "@
+        }
     }
-}
 
-Disconnect-MgGraph | Out-Null
-Set-Location $CurrentLocation
+} catch {
+    Write-Log -Message $_ -Component 'GFDCore' -Type 3
+} finally {
+    Remove-Variable RequiredGraphScopes -Force # This shouldn't actually be needed but it makes debugging less painful
+    Disconnect-MgGraph -ErrorAction SilentlyContinue  | Out-Null 
+    Set-Location $CurrentLocation
+}
